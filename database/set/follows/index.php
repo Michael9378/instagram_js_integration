@@ -5,7 +5,7 @@ if( isset( $_GET["follower"] ) && isset( $_GET["follows"] ) ) {
 }
 
 if( isset( $_GET["mass_follow"] ) ) {
-	echo mass_set_follows();
+	save_chunk( $_GET["mass_follow"] );
 }
 
 // all set queries here
@@ -28,16 +28,35 @@ function sql_set_follows($follower, $follows) {
 		ON DUPLICATE KEY UPDATE follows=follows";
 }
 
-function mass_set_follows() {
-	$follows = json_decode(  $_GET["mass_follow"] );
+function save_chunk( $follows ) {
+	if( count( $follows ) > 50 ) {
+		// chunk of 50 follows and save to db
+		$follows_chunk = array();
+		for($i = 0; $i < 50; $i++) {
+			array_push( $follows_chunk, array_pop( $follows ) );
+		}
+		if( !mass_follow( $follows_chunk ) )
+			echo "Something went wrong with saving.";
+		else
+			save_chunk( $follows );
+	}
+	else {
+		if( !mass_follow( $follows ) )
+			echo "Something went wrong with saving.";
+		else
+			echo "All saved.";
+	}
+}
+
+function mass_follow( $follows ) {
 	$mass_set = "INSERT INTO  `instagram_follows` ( follower, follows ) ";
 	$first = true;
 	foreach( $follows as $following) {
 		if($first) {
-			$mass_set .= "SELECT '".$following[0]."','".$following[1]."' ";			
+			$mass_set .= "SELECT '".$following[0]."','".$following[1]."' ";
 			$first = false;
 		}
-		else 
+		else
 			$mass_set .= "UNION ALL SELECT '".$following[0]."','".$following[1]."' ";	
 	}
 	$mass_set .= "ON DUPLICATE KEY UPDATE follows=follows;";
