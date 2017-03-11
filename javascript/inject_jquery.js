@@ -17,7 +17,8 @@
             jquery_cdn.setAttribute("src","https://code.jquery.com/jquery-3.1.1.min.js");
             document.body.prepend(jquery_cdn);
         }
-        jQueryListen();
+        if( cb && typeof cb == "function" )
+        	jQueryListen();
         // listen for jQuery to be loaded
         function jQueryListen(){
             if( typeof jQuery == "undefined" )
