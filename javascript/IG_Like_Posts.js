@@ -10,32 +10,39 @@
 
 // Before starting this script, run setUp(tag, blacklist)
 
-// setUp("motocross", ["factorybacking", "motoholics", "waspcam", "vintage_offroad", "motouniverse", "rottamg", "bonnieclassentertainment"]);
+// setUp("motocross", ["dirtbikemedia", "alphamxgraphics", "jmx_shop", "creditcascos", "dirtkingdom", "puncak_sablon", "dirtfilmx", "sisinblack_", "adrenalinejunkieprod", "crushedmx", "dirtbikevideos", "shineraysdeal", "factorybacking", "motoholics", "waspcam", "vintage_offroad", "motouniverse", "rottamg", "bonnieclassentertainment"]);
 function setUp( tag, blacklist ){
 	sessionStorage.setItem("exploreTag", tag);
 	sessionStorage.setItem("likeFlag", "true");
 	sessionStorage.setItem("startTime", (new Date()).getTime() );
 	sessionStorage.setItem("likeCount", 0);
-	sessionStorage.setItem("blacklist", JSON.stringify( blacklist ) );
+	sessionStorage.setItem("likesPerHour", 100);
+	localStorage.setItem("blacklist", JSON.stringify( blacklist ) );
+	if( !localStorage.getItem("globalAutoLikeCount") )
+		localStorage.setItem("globalAutoLikeCount", "0");
 }
 
-
+function addToBlackList(new_user) {
+	var blacklist = JSON.parse( sessionStorage.getItem("blacklist") );
+	blacklist.push(new_user);
+	sessionStorage.setItem("blacklist", JSON.stringify( blacklist ) );
+}
 
 // get start time and parse to number
 var runningTime = Number( sessionStorage.getItem("startTime") );
 // subtract it from current time
 runningTime = (new Date()).getTime() - runningTime;
-// 5 hours is 5*60*60*1000 milliseconds
-var fiveHours = 5*60*60*1000;
-// set like flag to false if we have been going for 5 or more hours on 1 session.
-if( runningTime > fiveHours ) {
-	sessionStorage.setItem("likeFlag", "false");
-	alert("Exceeded session time. Stopping.");
-}
 // check if we should keep moving
 if( sessionStorage.getItem("likeFlag") == "true" ) {
+	// If we are stuck for 3 minutes, we probably hit a problem.
+	delayReload(3*60*1000);
 	console.log("Session run time: " + msToTime( runningTime ) );
 	console.log("Session like count: " + sessionStorage.getItem("likeCount"));
+	var sessionlikes = Number( sessionStorage.getItem("likeCount") );
+	lph = (60*60*1000)*sessionlikes/runningTime;
+	console.log("Likes per hour: " + lph );
+	var lpm = lph/60;
+	console.log("Likes per minute: " + lpm );
 	// make sure to wait at least 30 seconds before reloading page
 	// inject jquery and wait 20 seconds.
 	var jquery_cdn = document.createElement("script");
@@ -45,14 +52,18 @@ if( sessionStorage.getItem("likeFlag") == "true" ) {
 }
 
 // grab most recent post on page given a tag and like it
+// pageTime = 3600/lph
+var page_wait_time_in_sec = 3600/( Number( sessionStorage.getItem("likesPerHour") ) );
+
+var pageWaitTime = page_wait_time_in_sec * 1000;
 function likePost(){
 	// we have 25 seconds to kill still. Set timeouts for clicks
 	// remove top posts
-	console.log("removing top posts");
 	$("._5kftd").remove();
 	setTimeout(function(){
 		// click first post to open it
 		// find 13th post. This post has been up for a couple minutes.
+		pageWaitTime -= 5000;
 		checkAndLike(9);
 	}, 5000);
 }
@@ -61,53 +72,77 @@ function checkAndLike(index){
 	if( $("._8mlbc._vbtk2._t5r8b").length <= index ) {
 		// we ran out of pictures on the page to click.
 		// hit the load more button and check same index again.
-		$("._8imhp._glz1g")[0].click();
+        if( !$("._8imhp._glz1g").length )
+            $("._8imhp._glz1g")[0].click();
+        else
+            
 		setTimeout( function(){
+			pageWaitTime -= 2000;
 			checkAndLike(index);
 		}, 2000);
+		return false;
 	}
 	// open current image
 	$("._8mlbc._vbtk2._t5r8b")[index].click();
 	// wait some more before liking this post.
 	setTimeout(function(){
+		pageWaitTime -= 2000;
 		// check for spammy post
 		if( checkforskip() ) {
 			index++;
 			checkAndLike(index);
-		}
-		// check if we liked this post already
-		if( $(".coreSpriteHeartOpen").length ) {
-			console.log("Liking post in 15 seconds.");
-			setTimeout(function(){
-				// like post
-				$(".coreSpriteHeartOpen").click();
-				// log the like
-				var likeCount = sessionStorage.getItem("likeCount");
-				likeCount = Number(likeCount);
-				likeCount++;
-				if( likeCount > 300 ){
-					sessionStorage.setItem("likeFlag", "false");
-					alert("Exceeded session like count. Stopping.");
-					return false;
-				}
-				sessionStorage.setItem("likeCount", likeCount);
-
-				// we have been on the page for atleast 30 seconds.
-				var reloadWait = Math.random() * 60 * 1000;
-				reloadWait = Math.ceil(reloadWait);
-
-				console.log("reloading page in " + reloadWait/1000 + "seconds");
-				delayReload(reloadWait);
-			}, 15*1000);
+			return false;
 		}
 		else {
-			index++;
-			checkAndLike(index);
+			// check if we liked this post already
+			if( $(".coreSpriteHeartOpen").length ) {
+				console.log("Liking post in 15 seconds.");
+				setTimeout(function(){
+					pageWaitTime -= 15000;
+					// like post
+					$(".coreSpriteHeartOpen").click();
+					// log the like
+					var likeCount = sessionStorage.getItem("likeCount");
+					likeCount = Number(likeCount);
+					likeCount++;
+					// log to global like count
+					var globalLikeCount = localStorage.getItem("globalAutoLikeCount");
+					globalLikeCount = Number(globalLikeCount);
+					globalLikeCount++;
+					localStorage.setItem("globalAutoLikeCount", globalLikeCount);
+					// stop if we reach our 500 session limit
+					if( likeCount > 500 ){
+						sessionStorage.setItem("likeFlag", "false");
+						alert("Exceeded session like count. Stopping.");
+						return false;
+					}
+					sessionStorage.setItem("likeCount", likeCount);
+
+					// random wait to match pageWaiteTime
+					console.log("pageWaitTime left: " + pageWaitTime/1000);
+					var reloadWait = Math.random() * (pageWaitTime*2);
+					reloadWait = Math.ceil(reloadWait);
+
+					console.log("Reloading page in " + reloadWait/1000 + "seconds");
+					delayReload(reloadWait);
+				}, 15*1000);
+			}
+			else {
+				index++;
+				checkAndLike(index);
+				return false;
+			}
 		}
 	}, 2000);
 }
 
 function delayReload(waitTime) {
+	if(waitTime > 9999 && waitTime < 60*1000) {
+		var secondsLeft = Math.ceil(waitTime/1000);
+		setInterval(function(){
+			console.log("Seconds left: " + (secondsLeft-=5));
+		}, 5000);
+	}
 	setTimeout(function(){
 		var tag = sessionStorage.getItem("exploreTag");
 		url = "https://www.instagram.com/explore/tags/" + tag + "/";
@@ -135,6 +170,7 @@ function checkforskip() {
 		if( posterlink.includes( blacklist[i] ) )
 			return true;
 	}
-
-
+	// if too many likes already, also skip
+	if( $("._tf9x3 span")[0] )
+		return true;
 }
