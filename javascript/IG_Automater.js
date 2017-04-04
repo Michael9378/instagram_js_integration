@@ -1,35 +1,97 @@
 // ==UserScript==
-// @name         IG Like Posts
+// @name         IG Automator
 // @namespace    http://michaeljscott.net/
 // @version      0.1
-// @description  Follow most recent posts given a tag
+// @description  Like posts, Follow users, and Unfollow users,
 // @author       Michael Scott
 // @match        https://*.instagram.com/*
 // ==/UserScript==
 
-// TODO:
-// Make tags an array
-// Switch between tags after current tag gets stale.
-// IE: After skipping 15 posts in row or after 50 likes, switch tags
+// We can assume if this plugin is running that the user wants to run this script.
+
+// Have initial inputs for setup.
+// You will need a tag list, a black list, and current username from the user
+// Advanced settings allow for adjustment of like limit, likes per hour, and likes per follow/unfollow
+
+// Global variables
+var username;
+var tags;
+var blacklist;
+var likeLimit;
+var likesPerHour;
+var followLimit
+
+// flags for proper operation
+var initDone = ( sessionStorage.getItem("initDone") == null );
+var runBot = false;
+var dailyInit = false;
+
+// if we haven't run init yet, run it.
+if( !initDone ) {
+	injectJquery();
+	setTimeout(instagramInit, 2000);
+	// all variables are stored in global but need to be saved in local/session storage
+	localStorage.setItem("username", username);
+	localStorage.setItem("tags", tags);
+	localStorage.setItem("blacklist", blacklist);
+	localStorage.setItem("likeLimit", likeLimit);
+	localStorage.setItem("likesPerHour", likesPerHour);
+	localStorage.setItem("followLimit", followLimit);
+}
+if( runBot ) {
+	// if we haven't reset our daily limits and timers, do so now.
+	if( !dailyInit )
+		dailyInit();
+	// start liking posts
+	likePost();
+}
+
+
+// Initial startup takes in user parameters
+function instagramInit(){
+	// TODO: Check if setup in local storage first and prompt with that for blacklist and tags
+	alert("You have the instagram bot enabled. Disable the plugin and reload page to stop it.\n\nPlease answer the following prompts to setup scripts. \n\nIf you find accounts you do not wish to like or follow, please enter them in the blacklist. \n\nFor tags, grab 2 or more tags to pull from. Make sure that 1 these tags post pictures relevant to your account that you would like and 2 that they have a good amount of pictures posted to them (more than 500,000 total posts. 2 tags with 1.5 mil posts worked for me.)");
+	alert("Notice: Like and follow limit suggestions are known to be safe. Go beyond these at your own risk. Don't get you account banned, I can't help you and it WILL happen if you violate limits exceptionally.)");
+	// get username
+	username = $(".coreSpriteDesktopNavProfile").attr("href");
+	username = username.substring(1, username.length-1);
+	username = prompt("Is your username correct here?", username);
+	// get list of tags
+	tags = prompt("Please enter a comma seperated list of tags to pull posts from (no spaces).", "motocross,dirtbike,motolife,braap,2stroke");
+	tags = tags.split(",");
+	// get blacklist
+	blacklist = prompt("Enter list of users not to like or follow (no spaces).", "dirtbikemedia,alphamxgraphics,jmx_shop,creditcascos,dirtkingdom,puncak_sablon,dirtfilmx,sisinblack_,adrenalinejunkieprod,crushedmx,dirtbikevideos,shineraysdeal,factorybacking,motoholics,waspcam,vintage_offroad,motouniverse,rottamg,bonnieclassentertainment");
+	blacklist = blacklist.split(",");
+	// get daily like limit
+	likeLimit = prompt("Enter daily like limit.", "500");
+	likeLimit = parseInt( likeLimit );
+	// get likes per hour
+	likesPerHour = prompt("Enter likes per hour.", "100");
+	likesPerHour = parseInt( likesPerHour );
+	// get follow/unfollows per hour
+	followLimit = prompt("Enter follows/unfollows daily limit.", "100");
+	followLimit = parseInt( followLimit );
+	// set init done to true
+	sessionStorage.setItem("initDone", "true");
+}
 
 // Before starting this script, run setUp(tag, blacklist)
 
 function setUp( tags, blacklist ){
-	sessionStorage.setItem("exploreTags", tags);
 	sessionStorage.setItem("likeFlag", "true");
 	sessionStorage.setItem("startTime", (new Date()).getTime() );
 	sessionStorage.setItem("likeCount", 0);
 	sessionStorage.setItem("likesPerHour", 100);
+	localStorage.setItem("exploreTags", tags);
 	localStorage.setItem("blacklist", JSON.stringify( blacklist ) );
 	if( !localStorage.getItem("globalAutoLikeCount") )
 		localStorage.setItem("globalAutoLikeCount", "0");
 }
-// setUp('["motocross","dirtbike","motolife"]', ["augustobartelle", "braapalldayeveryday", "dirtworld", "dirtbikemedia", "alphamxgraphics", "jmx_shop", "creditcascos", "dirtkingdom", "puncak_sablon", "dirtfilmx", "sisinblack_", "adrenalinejunkieprod", "crushedmx", "dirtbikevideos", "shineraysdeal", "factorybacking", "motoholics", "waspcam", "vintage_offroad", "motouniverse", "rottamg", "bonnieclassentertainment"]);
 
 function addToBlackList(new_user) {
 	var blacklist = JSON.parse( localStorage.getItem("blacklist") );
 	blacklist.push(new_user);
-	sessionStorage.setItem("blacklist", JSON.stringify( blacklist ) );
+	localStorage.setItem("blacklist", JSON.stringify( blacklist ) );
 }
 
 // get start time and parse to number
@@ -200,7 +262,7 @@ function checkforskip() {
 
 // returns the current tag to use for next like
 function getTag() {
-	var tags = JSON.parse( sessionStorage.getItem("exploreTags") );
+	var tags = JSON.parse( localStorage.getItem("exploreTags") );
 	var index = Number(localStorage.getItem("globalAutoLikeCount"))%tags.length;
 	return tags[index];
 }
